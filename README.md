@@ -363,4 +363,3 @@ Evgeni S - Portfolio Project
 - [Ansible Best Practices](https://docs.ansible.com/ansible/latest/user_guide/playbooks_best_practices.html)
 - [Calico Documentation](https://docs.projectcalico.org/)
 - [containerd Documentation](https://containerd.io/)
-
