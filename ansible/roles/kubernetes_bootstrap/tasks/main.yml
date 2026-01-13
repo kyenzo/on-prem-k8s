@@ -1,0 +1,67 @@
+---
+# Install Kubernetes components (kubeadm, kubelet, kubectl)
+
+- name: Create keyrings directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags: [k8s, install]
+
+- name: Add Kubernetes GPG key
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key | \
+    gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  tags: [k8s, install]
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: "{{ kubernetes_apt_repository }}"
+    state: present
+    filename: kubernetes
+  tags: [k8s, install]
+
+- name: Update apt cache after adding Kubernetes repository
+  apt:
+    update_cache: yes
+  tags: [k8s, install]
+
+- name: Install Kubernetes packages
+  apt:
+    name: "{{ kubernetes_packages }}"
+    state: present
+    allow_change_held_packages: yes
+  tags: [k8s, install]
+
+- name: Hold Kubernetes packages at current version
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ kubernetes_packages }}"
+  tags: [k8s, install]
+
+- name: Enable kubelet service
+  systemd:
+    name: kubelet
+    enabled: yes
+    daemon_reload: yes
+  tags: [k8s, service]
+
+- name: Create kubelet systemd drop-in directory
+  file:
+    path: /etc/systemd/system/kubelet.service.d
+    state: directory
+    mode: '0755'
+  tags: [k8s, config]
+
+- name: Verify Kubernetes packages are installed
+  command: "{{ item }} version --client"
+  loop:
+    - kubeadm
+    - kubectl
+  register: k8s_version_check
+  changed_when: false
+  failed_when: k8s_version_check.rc != 0
+  tags: [k8s, verify]

@@ -1,0 +1,103 @@
+---
+# Verify Kubernetes cluster is fully operational
+
+- name: Verify Kubernetes cluster health
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Get all nodes
+      command: kubectl get nodes -o wide
+      become_user: vagrant
+      register: all_nodes
+      changed_when: false
+
+    - name: Display all nodes
+      debug:
+        var: all_nodes.stdout_lines
+
+    - name: Get all namespaces
+      command: kubectl get namespaces
+      become_user: vagrant
+      register: all_namespaces
+      changed_when: false
+
+    - name: Display all namespaces
+      debug:
+        var: all_namespaces.stdout_lines
+
+    - name: Get all pods in kube-system
+      command: kubectl get pods -n kube-system -o wide
+      become_user: vagrant
+      register: system_pods
+      changed_when: false
+
+    - name: Display kube-system pods
+      debug:
+        var: system_pods.stdout_lines
+
+    - name: Verify all system pods are running
+      shell: kubectl get pods -n kube-system --no-headers | grep -v "Running\|Completed" | wc -l
+      become_user: vagrant
+      register: non_running_pods
+      changed_when: false
+      failed_when: non_running_pods.stdout != "0"
+
+    - name: Get cluster component status
+      command: kubectl get componentstatuses
+      become_user: vagrant
+      register: component_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display component status
+      debug:
+        var: component_status.stdout_lines
+      when: component_status.rc == 0
+
+    - name: Create test deployment
+      command: kubectl create deployment nginx --image=nginx:alpine --replicas=2
+      become_user: vagrant
+      register: test_deployment
+      changed_when: "'created' in test_deployment.stdout"
+      failed_when: false
+
+    - name: Wait for test deployment to be ready
+      command: kubectl wait --for=condition=available --timeout=120s deployment/nginx
+      become_user: vagrant
+      register: deployment_ready
+      changed_when: false
+      when: test_deployment.rc == 0
+
+    - name: Get test pods
+      command: kubectl get pods -l app=nginx -o wide
+      become_user: vagrant
+      register: test_pods
+      changed_when: false
+      when: test_deployment.rc == 0
+
+    - name: Display test pods
+      debug:
+        var: test_pods.stdout_lines
+      when: test_deployment.rc == 0
+
+    - name: Delete test deployment
+      command: kubectl delete deployment nginx
+      become_user: vagrant
+      changed_when: true
+      when: test_deployment.rc == 0
+
+    - name: Final verification summary
+      debug:
+        msg:
+          - "============================================"
+          - "Kubernetes Cluster Verification Complete!"
+          - "============================================"
+          - "Nodes: {{ all_nodes.stdout_lines | length - 1 }}"
+          - "All system pods are running"
+          - "Test deployment successful"
+          - ""
+          - "Access your cluster from your Mac:"
+          - "export KUBECONFIG={{ playbook_dir }}/../kubeconfig"
+          - "kubectl get nodes"
+          - "kubectl get pods -A"

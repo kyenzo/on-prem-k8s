@@ -1,0 +1,53 @@
+---
+# Install and configure Calico CNI plugin
+
+- name: Download Calico manifest
+  get_url:
+    url: "{{ calico_manifest_url }}"
+    dest: "{{ calico_manifest_path }}"
+    mode: '0644'
+  tags: [cni, calico, download]
+
+- name: Check if CALICO_IPV4POOL_CIDR needs to be configured
+  shell: grep -q "CALICO_IPV4POOL_CIDR" {{ calico_manifest_path }}
+  register: calico_cidr_check
+  changed_when: false
+  failed_when: false
+  tags: [cni, calico, config]
+
+- name: Configure Calico pod network CIDR
+  replace:
+    path: "{{ calico_manifest_path }}"
+    regexp: '# - name: CALICO_IPV4POOL_CIDR\n#   value: "192.168.0.0/16"'
+    replace: '- name: CALICO_IPV4POOL_CIDR\n  value: "{{ pod_network_cidr }}"'
+  when: calico_cidr_check.rc == 0
+  tags: [cni, calico, config]
+
+- name: Apply Calico manifest
+  command: kubectl apply -f {{ calico_manifest_path }}
+  become_user: vagrant
+  register: calico_apply
+  changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
+  tags: [cni, calico, install]
+
+- name: Wait for Calico pods to be ready
+  command: kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+  become_user: vagrant
+  register: calico_ready
+  changed_when: false
+  retries: 3
+  delay: 10
+  until: calico_ready.rc == 0
+  tags: [cni, calico, verify]
+
+- name: Verify Calico installation
+  command: kubectl get pods -n kube-system -l k8s-app=calico-node
+  become_user: vagrant
+  register: calico_pods
+  changed_when: false
+  tags: [cni, calico, verify]
+
+- name: Display Calico pods status
+  debug:
+    var: calico_pods.stdout_lines
+  tags: [cni, calico, verify]

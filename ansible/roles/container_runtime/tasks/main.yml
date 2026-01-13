@@ -1,0 +1,63 @@
+---
+# Install and configure containerd as container runtime
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    keyring: /etc/apt/keyrings/docker.gpg
+    state: present
+  tags: [containerd, install]
+
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+  tags: [containerd, install]
+
+- name: Update apt cache after adding Docker repository
+  apt:
+    update_cache: yes
+  tags: [containerd, install]
+
+- name: Install containerd
+  apt:
+    name: containerd.io
+    state: present
+  tags: [containerd, install]
+
+- name: Create containerd config directory
+  file:
+    path: "{{ containerd_config_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [containerd, config]
+
+- name: Generate default containerd configuration
+  shell: containerd config default > {{ containerd_config_file }}
+  args:
+    creates: "{{ containerd_config_file }}"
+  tags: [containerd, config]
+
+- name: Configure containerd to use systemd cgroup driver
+  replace:
+    path: "{{ containerd_config_file }}"
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: restart containerd
+  tags: [containerd, config]
+
+- name: Enable and start containerd service
+  systemd:
+    name: containerd
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags: [containerd, service]
+
+- name: Verify containerd is running
+  command: systemctl is-active containerd
+  register: containerd_status
+  changed_when: false
+  failed_when: containerd_status.stdout != "active"
+  tags: [containerd, verify]

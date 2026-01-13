@@ -1,0 +1,18 @@
+---
+# Prepare all nodes with common system configuration
+
+- name: Prepare all Kubernetes nodes
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: common
+      tags: [common, prepare]
+
+  post_tasks:
+    - name: Display preparation summary
+      debug:
+        msg:
+          - "Node preparation completed for {{ inventory_hostname }}"
+          - "Swap disabled: {{ disable_swap }}"
+          - "Kernel modules loaded: {{ kernel_modules }}"

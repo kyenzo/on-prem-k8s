@@ -1,0 +1,5 @@
+---
+# Default variables for container runtime role
+
+containerd_config_dir: /etc/containerd
+containerd_config_file: "{{ containerd_config_dir }}/config.toml"

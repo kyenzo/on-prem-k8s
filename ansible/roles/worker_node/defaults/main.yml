@@ -1,0 +1,4 @@
+---
+# Default variables for worker node role
+
+join_command_file: "{{ playbook_dir }}/../kubeadm_join_command.sh"

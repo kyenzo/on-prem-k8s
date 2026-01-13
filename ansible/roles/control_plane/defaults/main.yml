@@ -1,0 +1,5 @@
+---
+# Default variables for control plane role
+
+kubeadm_config_dir: /etc/kubernetes
+kubeconfig_local_path: "{{ playbook_dir }}/../kubeconfig"

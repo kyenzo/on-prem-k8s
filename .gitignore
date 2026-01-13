@@ -1,0 +1,26 @@
+# Vagrant
+.vagrant/
+*.log
+
+# Ansible
+ansible/ansible.log
+*.retry
+
+# Kubernetes
+kubeconfig
+kubeadm_join_command.sh
+
+# Generated files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Backup files
+*.bak
+*.backup
+
+# Secrets
+*.key
+*.pem
+secrets/

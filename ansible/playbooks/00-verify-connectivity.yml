@@ -1,0 +1,16 @@
+---
+# Verify Ansible connectivity to all nodes
+
+- name: Verify connectivity to all nodes
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Ping all nodes
+      ping:
+
+    - name: Gather facts
+      setup:
+
+    - name: Display node information
+      debug:
+        msg: "Connected to {{ inventory_hostname }} ({{ ansible_distribution }} {{ ansible_distribution_version }})"

@@ -1,0 +1,20 @@
+---
+# Install and configure container runtime on all nodes
+
+- name: Install container runtime
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: container_runtime
+      tags: [containerd, runtime]
+
+  post_tasks:
+    - name: Verify containerd installation
+      command: containerd --version
+      register: containerd_version_output
+      changed_when: false
+
+    - name: Display containerd version
+      debug:
+        msg: "containerd installed: {{ containerd_version_output.stdout }}"

@@ -1,0 +1,30 @@
+---
+# Initialize Kubernetes control plane
+
+- name: Initialize Kubernetes control plane
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: control_plane
+      tags: [control-plane, init]
+
+  post_tasks:
+    - name: Get cluster info
+      command: kubectl cluster-info
+      become_user: vagrant
+      register: cluster_info
+      changed_when: false
+
+    - name: Display cluster information
+      debug:
+        var: cluster_info.stdout_lines
+
+    - name: Reminder about kubeconfig
+      debug:
+        msg:
+          - "Control plane initialized successfully!"
+          - "Kubeconfig saved to: {{ playbook_dir }}/../kubeconfig"
+          - "Join command saved to: {{ playbook_dir }}/../kubeadm_join_command.sh"
+          - "You can access the cluster from your Mac using:"
+          - "export KUBECONFIG={{ playbook_dir }}/../kubeconfig"

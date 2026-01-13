@@ -1,0 +1,7 @@
+---
+# Handlers for worker node role
+
+- name: restart kubelet
+  systemd:
+    name: kubelet
+    state: restarted

@@ -1,0 +1,30 @@
+---
+# Install CNI plugin (Calico)
+
+- name: Install Calico CNI plugin
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: cni_plugin
+      tags: [cni, calico]
+
+  post_tasks:
+    - name: Wait for all nodes to be Ready
+      command: kubectl get nodes
+      become_user: vagrant
+      register: nodes_status
+      until: "'NotReady' not in nodes_status.stdout"
+      retries: 20
+      delay: 15
+      changed_when: false
+
+    - name: Display all nodes status
+      debug:
+        var: nodes_status.stdout_lines
+
+    - name: Success message
+      debug:
+        msg:
+          - "Calico CNI installed successfully!"
+          - "All nodes should now be in Ready state"

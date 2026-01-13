@@ -1,0 +1,20 @@
+---
+# Install Kubernetes components on all nodes
+
+- name: Install Kubernetes components
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: kubernetes_bootstrap
+      tags: [kubernetes, install]
+
+  post_tasks:
+    - name: Display kubeadm version
+      command: kubeadm version -o short
+      register: kubeadm_version_output
+      changed_when: false
+
+    - name: Show installed Kubernetes version
+      debug:
+        msg: "Kubernetes {{ kubeadm_version_output.stdout }} installed on {{ inventory_hostname }}"

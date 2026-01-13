@@ -1,0 +1,44 @@
+---
+# Join worker nodes to Kubernetes cluster
+
+- name: Check if node is already part of a cluster
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf_stat
+  tags: [worker, join]
+
+- name: Read join command from file
+  set_fact:
+    join_command: "{{ lookup('file', join_command_file) }}"
+  when: not kubelet_conf_stat.stat.exists
+  delegate_to: localhost
+  become: no
+  tags: [worker, join]
+
+- name: Join node to Kubernetes cluster
+  command: "{{ join_command }}"
+  when: not kubelet_conf_stat.stat.exists
+  register: join_output
+  tags: [worker, join]
+
+- name: Display join output
+  debug:
+    var: join_output.stdout_lines
+  when: join_output is defined and join_output.changed
+  tags: [worker, join]
+
+- name: Wait for kubelet to start
+  systemd:
+    name: kubelet
+    state: started
+  tags: [worker, service]
+
+- name: Verify kubelet is running
+  command: systemctl is-active kubelet
+  register: kubelet_status
+  changed_when: false
+  failed_when: kubelet_status.stdout != "active"
+  retries: 5
+  delay: 5
+  until: kubelet_status.stdout == "active"
+  tags: [worker, verify]

@@ -1,0 +1,8 @@
+---
+# Default variables for kubernetes bootstrap role
+
+kubernetes_apt_repository: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+kubernetes_packages:
+  - kubelet
+  - kubeadm
+  - kubectl

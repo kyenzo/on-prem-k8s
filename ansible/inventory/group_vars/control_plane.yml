@@ -1,0 +1,14 @@
+---
+# Control Plane specific variables
+
+# Control plane endpoint
+control_plane_endpoint: "192.168.56.10:6443"
+
+# Kubeadm init parameters
+kubeadm_init_extra_args: ""
+
+# API server advertise address
+api_server_advertise_address: "192.168.56.10"
+
+# kubeconfig path
+kubeconfig_path: "/etc/kubernetes/admin.conf"
