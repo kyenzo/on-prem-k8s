@@ -82,4 +82,3 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
     echo "#{NETWORK_PREFIX}.#{WORKER_IP_START + 1} worker-2" >> /etc/hosts
   SHELL
 end
-
