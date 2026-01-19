@@ -1,6 +1,3 @@
-# -*- mode: ruby -*-
-# vi: set ft=ruby :
-
 # On-Prem Kubernetes Cluster Configuration
 # 1 Control Plane + 2 Worker Nodes
 
