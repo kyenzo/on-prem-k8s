@@ -11,17 +11,21 @@ VAGRANT_API_VERSION = "2"
 CONTROL_PLANE_COUNT = 1
 WORKER_COUNT = 2
 
-# VM Resources
-CONTROL_PLANE_MEMORY = "4G"
+# VM Resources (reduced for 18GB Mac - total 6GB for VMs)
+CONTROL_PLANE_MEMORY = "2G"
 CONTROL_PLANE_CPUS = 2
-WORKER_MEMORY = "4G"
+WORKER_MEMORY = "2G"
 WORKER_CPUS = 2
 
 # Base box - ARM64 Ubuntu for Apple Silicon
-BOX_IMAGE = "perk/ubuntu-22.04-arm64"
+# See: https://app.vagrantup.com/boxes/search?q=arm64
+BOX_IMAGE = "perk/ubuntu-2204-arm64"
 
 # SSH port base (each VM gets a unique port)
 SSH_PORT_BASE = 50022
+
+# QEMU directory (Homebrew installs to /usr/local on some Macs instead of /opt/homebrew)
+QEMU_DIR = "/usr/local/Cellar/qemu/10.2.0/share/qemu"
 
 Vagrant.configure(VAGRANT_API_VERSION) do |config|
   config.vm.box = BOX_IMAGE
@@ -39,9 +43,10 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
         qe.memory = CONTROL_PLANE_MEMORY
         qe.smp = CONTROL_PLANE_CPUS
         qe.ssh_port = SSH_PORT_BASE + i - 1
-        # Use Apple Hypervisor Framework for native ARM64 performance
-        qe.machine = "virt,accel=hvf,highmem=off"
-        qe.cpu = "host"
+        qe.qemu_dir = QEMU_DIR
+        # Use TCG (software emulation) - slower but compatible
+        qe.machine = "virt,highmem=off"
+        qe.cpu = "cortex-a72"
         qe.net_device = "virtio-net-device"
       end
 
@@ -63,9 +68,10 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
         qe.memory = WORKER_MEMORY
         qe.smp = WORKER_CPUS
         qe.ssh_port = SSH_PORT_BASE + CONTROL_PLANE_COUNT + i - 1
-        # Use Apple Hypervisor Framework for native ARM64 performance
-        qe.machine = "virt,accel=hvf,highmem=off"
-        qe.cpu = "host"
+        qe.qemu_dir = QEMU_DIR
+        # Use TCG (software emulation) - slower but compatible
+        qe.machine = "virt,highmem=off"
+        qe.cpu = "cortex-a72"
         qe.net_device = "virtio-net-device"
       end
 
