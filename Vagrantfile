@@ -1,54 +1,56 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
 # On-Prem Kubernetes Cluster Configuration
 # 1 Control Plane + 2 Worker Nodes
+# Configured for Apple Silicon (M1/M2/M3) using QEMU
 
 VAGRANT_API_VERSION = "2"
 
 # Cluster configuration
 CONTROL_PLANE_COUNT = 1
 WORKER_COUNT = 2
-NETWORK_PREFIX = "192.168.56"
-CONTROL_PLANE_IP_START = 10
-WORKER_IP_START = 20
 
 # VM Resources
-CONTROL_PLANE_MEMORY = 4096
+CONTROL_PLANE_MEMORY = "4G"
 CONTROL_PLANE_CPUS = 2
-WORKER_MEMORY = 4096
+WORKER_MEMORY = "4G"
 WORKER_CPUS = 2
 
-# Base box
-BOX_IMAGE = "ubuntu/jammy64"  # Ubuntu 22.04 LTS
+# Base box - ARM64 Ubuntu for Apple Silicon
+BOX_IMAGE = "perk/ubuntu-22.04-arm64"
+
+# SSH port base (each VM gets a unique port)
+SSH_PORT_BASE = 50022
 
 Vagrant.configure(VAGRANT_API_VERSION) do |config|
   config.vm.box = BOX_IMAGE
   config.vm.box_check_update = false
 
+  # Disable default synced folder (not well supported with QEMU)
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
   # Control Plane Node(s)
   (1..CONTROL_PLANE_COUNT).each do |i|
     config.vm.define "control-plane-#{i}" do |node|
       node.vm.hostname = "control-plane-#{i}"
-      node.vm.network "private_network", ip: "#{NETWORK_PREFIX}.#{CONTROL_PLANE_IP_START + i - 1}"
 
-      node.vm.provider "virtualbox" do |vb|
-        vb.name = "k8s-control-plane-#{i}"
-        vb.memory = CONTROL_PLANE_MEMORY
-        vb.cpus = CONTROL_PLANE_CPUS
-
-        # Optimize VirtualBox settings
-        vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-        vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
-        vb.customize ["modifyvm", :id, "--ioapic", "on"]
+      node.vm.provider "qemu" do |qe|
+        qe.memory = CONTROL_PLANE_MEMORY
+        qe.smp = CONTROL_PLANE_CPUS
+        qe.ssh_port = SSH_PORT_BASE + i - 1
+        # Use Apple Hypervisor Framework for native ARM64 performance
+        qe.machine = "virt,accel=hvf,highmem=off"
+        qe.cpu = "host"
+        qe.net_device = "virtio-net-device"
       end
 
-      # Provision with Ansible only after all VMs are up
-      if i == CONTROL_PLANE_COUNT
-        node.vm.provision "ansible" do |ansible|
-          ansible.limit = "all"
-          ansible.playbook = "ansible/playbooks/00-verify-connectivity.yml"
-          ansible.inventory_path = "ansible/inventory/hosts.yml"
-          ansible.compatibility_mode = "2.0"
-        end
-      end
+      # Shell provisioning to set up /etc/hosts
+      node.vm.provision "shell", inline: <<-SHELL
+        # Get the VM's IP for reference
+        echo "127.0.0.1 control-plane-#{i}" >> /etc/hosts
+        echo "# Cluster nodes will be added after all VMs are up" >> /etc/hosts
+      SHELL
     end
   end
 
@@ -56,26 +58,21 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
   (1..WORKER_COUNT).each do |i|
     config.vm.define "worker-#{i}" do |node|
       node.vm.hostname = "worker-#{i}"
-      node.vm.network "private_network", ip: "#{NETWORK_PREFIX}.#{WORKER_IP_START + i - 1}"
 
-      node.vm.provider "virtualbox" do |vb|
-        vb.name = "k8s-worker-#{i}"
-        vb.memory = WORKER_MEMORY
-        vb.cpus = WORKER_CPUS
-
-        # Optimize VirtualBox settings
-        vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-        vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
-        vb.customize ["modifyvm", :id, "--ioapic", "on"]
+      node.vm.provider "qemu" do |qe|
+        qe.memory = WORKER_MEMORY
+        qe.smp = WORKER_CPUS
+        qe.ssh_port = SSH_PORT_BASE + CONTROL_PLANE_COUNT + i - 1
+        # Use Apple Hypervisor Framework for native ARM64 performance
+        qe.machine = "virt,accel=hvf,highmem=off"
+        qe.cpu = "host"
+        qe.net_device = "virtio-net-device"
       end
+
+      # Shell provisioning to set up /etc/hosts
+      node.vm.provision "shell", inline: <<-SHELL
+        echo "127.0.0.1 worker-#{i}" >> /etc/hosts
+      SHELL
     end
   end
-
-  # Common provisioning for all nodes
-  config.vm.provision "shell", inline: <<-SHELL
-    # Update /etc/hosts for cluster nodes
-    echo "#{NETWORK_PREFIX}.#{CONTROL_PLANE_IP_START} control-plane-1" >> /etc/hosts
-    echo "#{NETWORK_PREFIX}.#{WORKER_IP_START} worker-1" >> /etc/hosts
-    echo "#{NETWORK_PREFIX}.#{WORKER_IP_START + 1} worker-2" >> /etc/hosts
-  SHELL
 end
