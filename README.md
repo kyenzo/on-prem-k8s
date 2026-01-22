@@ -1,6 +1,6 @@
 # On-Premises Kubernetes Cluster with Ansible
 
-A production-ready, bare-metal Kubernetes cluster deployed on VirtualBox VMs using Vagrant and Ansible. This project demonstrates infrastructure-as-code best practices for managing on-premises Kubernetes environments.
+A production-ready, bare-metal Kubernetes cluster deployed on KVM/libvirt VMs using Vagrant and Ansible. This project demonstrates infrastructure-as-code best practices for managing on-premises Kubernetes environments.
 
 ## Project Overview
 
@@ -13,37 +13,37 @@ This repository contains automated infrastructure code to provision and configur
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Your Mac                           │
-│  kubectl → kubeconfig (192.168.56.10:6443)          │
-└─────────────────────────────────────────────────────┘
-                         │
-        ┌────────────────┴────────────────┐
-        │     VirtualBox VMs              │
-        │  (Private Network 192.168.56.0) │
-        │                                  │
-   ┌────▼─────────┐                       │
-   │ Control      │                       │
-   │ Plane        │  192.168.56.10        │
-   │ (4GB/2CPU)   │                       │
-   └────┬─────────┘                       │
-        │                                  │
-   ┌────┴──────────────────┐              │
-   │                       │              │
-┌──▼────────┐       ┌──────▼────┐        │
-│ Worker-1  │       │ Worker-2  │        │
-│ (4GB/2CPU)│       │ (4GB/2CPU)│        │
-│           │       │           │        │
-│ .56.20    │       │ .56.21    │        │
-└───────────┘       └───────────┘        │
-                                          │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   Ubuntu Server (EC2)                        │
+│                   IP: 16.174.10.6                           │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              libvirt/KVM Hypervisor                     │ │
+│  │         Private Network: 192.168.56.0/24               │ │
+│  │                                                         │ │
+│  │   ┌─────────────┐                                      │ │
+│  │   │ Control     │                                      │ │
+│  │   │ Plane       │  192.168.56.10                       │ │
+│  │   │ (4GB/2CPU)  │                                      │ │
+│  │   └─────┬───────┘                                      │ │
+│  │         │                                               │ │
+│  │   ┌─────┴──────────────────┐                           │ │
+│  │   │                        │                           │ │
+│  │ ┌─▼──────────┐      ┌──────▼────┐                      │ │
+│  │ │ Worker-1   │      │ Worker-2  │                      │ │
+│  │ │ (4GB/2CPU) │      │ (4GB/2CPU)│                      │ │
+│  │ │ .56.20     │      │ .56.21    │                      │ │
+│  │ └────────────┘      └───────────┘                      │ │
+│  │                                                         │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
 
-- **Virtualization**: Vagrant + VirtualBox
-- **OS**: Ubuntu 22.04 LTS
+- **Host OS**: Ubuntu 22.04 LTS (EC2)
+- **Virtualization**: Vagrant + libvirt/KVM
+- **Guest OS**: Ubuntu 22.04 LTS
 - **Orchestration**: Ansible (modular roles architecture)
 - **Kubernetes**: v1.28.x (kubeadm)
 - **Container Runtime**: containerd v1.7.x
@@ -51,29 +51,13 @@ This repository contains automated infrastructure code to provision and configur
 
 ## Prerequisites
 
-Ensure you have the following installed on your Mac:
+The Ubuntu server must have the following installed:
+- KVM and libvirt
+- Vagrant with vagrant-libvirt plugin
+- Ansible
+- kubectl
 
-```bash
-# VirtualBox
-brew install --cask virtualbox
-
-# Vagrant
-brew install --cask vagrant
-
-# Ansible
-brew install ansible
-
-# kubectl (for cluster management)
-brew install kubectl
-```
-
-Verify installations:
-```bash
-vboxmanage --version
-vagrant --version
-ansible --version
-kubectl version --client
-```
+See the infrastructure repository for the prerequisites installation script.
 
 ## Quick Start
 
@@ -87,7 +71,7 @@ cd on-prem-k8s
 ### 2. Provision VMs
 
 ```bash
-vagrant up
+vagrant up --provider=libvirt
 ```
 
 This will create 3 Ubuntu VMs with the following specs:
@@ -124,12 +108,18 @@ ansible-playbook playbooks/06-install-cni.yml
 ansible-playbook playbooks/99-verify-cluster.yml
 ```
 
+Or use the automated setup script:
+
+```bash
+./setup-cluster.sh
+```
+
 ### 4. Access the Cluster
 
 Configure kubectl to access your cluster:
 
 ```bash
-export KUBECONFIG=$(pwd)/kubeconfig
+export KUBECONFIG=$(pwd)/ansible/kubeconfig
 kubectl get nodes
 kubectl get pods -A
 ```
@@ -146,7 +136,9 @@ worker-2          Ready    <none>          8m    v1.28.0
 
 ```
 on-prem-k8s/
-├── Vagrantfile                          # VM definitions
+├── Vagrantfile                          # VM definitions (libvirt/KVM)
+├── Makefile                             # Convenience commands
+├── setup-cluster.sh                     # Automated setup script
 ├── ansible/
 │   ├── ansible.cfg                      # Ansible configuration
 │   ├── inventory/
@@ -170,39 +162,31 @@ on-prem-k8s/
 │       ├── 05-join-workers.yml
 │       ├── 06-install-cni.yml
 │       └── 99-verify-cluster.yml
-├── docs/
-│   ├── architecture.md
-│   └── troubleshooting.md
-└── README.md
+└── docs/
+    ├── architecture.md
+    └── troubleshooting.md
 ```
 
-## Key Features
+## Makefile Commands
 
-### Modular Ansible Roles
-
-Each role is self-contained with:
-- `tasks/main.yml` - Main task definitions
-- `defaults/main.yml` - Default variables
-- `handlers/main.yml` - Event handlers
-- `templates/` - Configuration templates
-
-### Idempotent Operations
-
-All Ansible tasks are idempotent - you can safely re-run playbooks without side effects.
-
-### Production Patterns
-
-- Swap disabled for Kubernetes compatibility
-- Kernel modules properly configured (overlay, br_netfilter)
-- Sysctl parameters for networking
-- containerd with systemd cgroup driver
-- Calico for production-grade networking
+```bash
+make help        # Show available commands
+make up          # Start VMs with Vagrant (libvirt)
+make provision   # Run all Ansible playbooks
+make verify      # Verify cluster health
+make status      # Show VM and cluster status
+make destroy     # Destroy all VMs
+make clean       # Clean generated files
+make ssh-control # SSH into control plane
+make ssh-worker1 # SSH into worker-1
+make ssh-worker2 # SSH into worker-2
+```
 
 ## Configuration
 
 ### Customize Variables
 
-Edit [`ansible/inventory/group_vars/all.yml`](ansible/inventory/group_vars/all.yml) to customize:
+Edit `ansible/inventory/group_vars/all.yml` to customize:
 
 ```yaml
 # Kubernetes version
@@ -219,7 +203,7 @@ calico_version: "v3.27.0"
 
 ### Modify VM Resources
 
-Edit [`Vagrantfile`](Vagrantfile):
+Edit `Vagrantfile`:
 
 ```ruby
 CONTROL_PLANE_MEMORY = 4096
@@ -228,126 +212,20 @@ WORKER_MEMORY = 4096
 WORKER_CPUS = 2
 ```
 
-## Testing & Verification
-
-### Run Verification Playbook
-
-```bash
-ansible-playbook playbooks/99-verify-cluster.yml
-```
-
-This playbook:
-- Checks all nodes are Ready
-- Verifies all system pods are Running
-- Creates a test nginx deployment
-- Validates pod scheduling across workers
-
-### Manual Verification
-
-```bash
-export KUBECONFIG=$(pwd)/ansible/kubeconfig
-
-# Check nodes
-kubectl get nodes -o wide
-
-# Check system pods
-kubectl get pods -n kube-system
-
-# Check Calico pods
-kubectl get pods -n kube-system -l k8s-app=calico-node
-
-# Deploy test workload
-kubectl create deployment nginx --image=nginx:alpine --replicas=3
-kubectl get pods -o wide
-```
-
-## Troubleshooting
-
-### VMs not starting
-```bash
-# Check VirtualBox status
-vboxmanage list runningvms
-
-# Restart VMs
-vagrant reload
-```
-
-### Ansible connection issues
-```bash
-# Test connectivity
-ansible all -m ping
-
-# SSH into VMs manually
-vagrant ssh control-plane-1
-vagrant ssh worker-1
-```
-
-### Pods not scheduling
-```bash
-# Check node status
-kubectl describe nodes
-
-# Check CNI pods
-kubectl get pods -n kube-system -l k8s-app=calico-node
-
-# Check for taints
-kubectl get nodes -o json | jq '.items[].spec.taints'
-```
-
-### Reset cluster
-```bash
-# Destroy VMs
-vagrant destroy -f
-
-# Start fresh
-vagrant up
-cd ansible
-ansible-playbook playbooks/01-prepare-nodes.yml
-# ... continue with other playbooks
-```
-
-## Future Enhancements (Phase 2)
+## Future Enhancements
 
 Planned features for portfolio expansion:
 
 1. **MetalLB** - LoadBalancer implementation for bare-metal
 2. **Local Storage Provisioner** - Dynamic persistent volume provisioning
 3. **Ansible Molecule** - Testing framework for infrastructure code
-4. **Multi-cluster networking** - Submariner for EKS connectivity
+4. **Multi-cluster networking** - Tunnel to EKS cluster
 5. **Monitoring Stack** - Prometheus + Grafana
 6. **GitOps** - ArgoCD integration
 
-## Management Commands
+## Troubleshooting
 
-```bash
-# Start VMs
-vagrant up
-
-# Stop VMs
-vagrant halt
-
-# SSH into nodes
-vagrant ssh control-plane-1
-vagrant ssh worker-1
-vagrant ssh worker-2
-
-# Check VM status
-vagrant status
-
-# Destroy all VMs
-vagrant destroy -f
-
-# Re-provision with Ansible
-vagrant provision
-```
-
-## Contributing
-
-This is a portfolio project demonstrating:
-- Infrastructure as Code (IaC) best practices
-- Ansible role development and modular design
-- Kubernetes bare-metal deployment
-- Production-ready configuration patterns
+See [docs/troubleshooting.md](docs/troubleshooting.md) for common issues and solutions.
 
 ## License
 
@@ -356,10 +234,3 @@ MIT
 ## Author
 
 Evgeni S - Portfolio Project
-
-## Resources
-
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
-- [Ansible Best Practices](https://docs.ansible.com/ansible/latest/user_guide/playbooks_best_practices.html)
-- [Calico Documentation](https://docs.projectcalico.org/)
-- [containerd Documentation](https://containerd.io/)

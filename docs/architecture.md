@@ -4,14 +4,14 @@
 
 ### High-Level Overview
 
-This project implements a production-like Kubernetes cluster on local VirtualBox VMs, demonstrating bare-metal deployment patterns.
+This project implements a production-like Kubernetes cluster on KVM/libvirt VMs running on an Ubuntu EC2 instance, demonstrating bare-metal deployment patterns.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                        Host Machine (Mac)                     │
+│                 Ubuntu Server (EC2: 16.174.10.6)             │
 │                                                               │
 │  ┌─────────────┐      ┌──────────────┐                      │
-│  │   Vagrant   │──────│  VirtualBox  │                      │
+│  │   Vagrant   │──────│ libvirt/KVM  │                      │
 │  └─────────────┘      └──────┬───────┘                      │
 │                               │                               │
 │  ┌─────────────┐              │                              │
@@ -60,7 +60,7 @@ This project implements a production-like Kubernetes cluster on local VirtualBox
 
 ### Network Topology
 
-- **Host-Only Network**: 192.168.56.0/24
+- **Private Network (libvirt)**: 192.168.56.0/24
   - Control Plane: 192.168.56.10
   - Worker-1: 192.168.56.20
   - Worker-2: 192.168.56.21
@@ -77,7 +77,7 @@ This project implements a production-like Kubernetes cluster on local VirtualBox
 
 1. **kubectl → API Server**
    ```
-   Mac (kubectl) → 192.168.56.10:6443 → kube-apiserver
+   Host (kubectl) → 192.168.56.10:6443 → kube-apiserver
    ```
 
 2. **Pod-to-Pod Communication**
@@ -264,11 +264,16 @@ All tasks are designed to be idempotent:
 
 ### System Requirements
 
-**Minimum Host Requirements:**
+**Minimum Host (EC2) Requirements:**
+- Instance Type: t3.xlarge or larger (4+ vCPUs, 16GB+ RAM)
 - CPU: 6+ cores (to allocate 2 per VM)
 - RAM: 16GB (12GB for VMs + 4GB for host)
 - Disk: 50GB free space
-- Virtualization: VT-x/AMD-V enabled
+- Nested Virtualization: Must be enabled (metal instances or .metal types)
+
+**Note:** For EC2, use instances that support nested virtualization:
+- `.metal` instances (e.g., `c5.metal`, `m5.metal`)
+- Or enable nested virtualization on supported instance types
 
 ## Scalability
 
@@ -343,7 +348,7 @@ Application Deployment
 
 ### Recovery Process
 
-1. Rebuild VMs: `vagrant destroy && vagrant up`
+1. Rebuild VMs: `vagrant destroy && vagrant up --provider=libvirt`
 2. Run Ansible playbooks: Sequential execution
 3. Restore etcd snapshot (if needed)
 4. Redeploy applications
@@ -354,3 +359,4 @@ Application Deployment
 - [Calico Architecture](https://docs.projectcalico.org/reference/architecture/)
 - [containerd Architecture](https://github.com/containerd/containerd/blob/main/docs/architecture.md)
 - [Ansible Best Practices](https://docs.ansible.com/ansible/latest/user_guide/playbooks_best_practices.html)
+- [libvirt/KVM Documentation](https://libvirt.org/docs.html)

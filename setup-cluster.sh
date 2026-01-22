@@ -2,6 +2,7 @@
 
 # On-Prem Kubernetes Cluster Setup Script
 # Automates the entire cluster deployment process
+# For Ubuntu Server with Vagrant + libvirt/KVM
 
 set -e
 
@@ -43,11 +44,18 @@ check_prerequisites() {
         print_success "Vagrant found: $(vagrant --version)"
     fi
 
-    if ! command -v vboxmanage &> /dev/null; then
-        print_error "VirtualBox is not installed"
+    if ! command -v virsh &> /dev/null; then
+        print_error "libvirt is not installed"
         missing_deps=1
     else
-        print_success "VirtualBox found: $(vboxmanage --version)"
+        print_success "libvirt found: $(virsh --version)"
+    fi
+
+    if ! vagrant plugin list | grep -q vagrant-libvirt; then
+        print_error "vagrant-libvirt plugin is not installed"
+        missing_deps=1
+    else
+        print_success "vagrant-libvirt plugin found"
     fi
 
     if ! command -v ansible &> /dev/null; then
@@ -67,11 +75,7 @@ check_prerequisites() {
     if [ $missing_deps -eq 1 ]; then
         print_error "Please install missing dependencies first"
         echo ""
-        echo "Installation commands for Mac:"
-        echo "  brew install --cask virtualbox"
-        echo "  brew install --cask vagrant"
-        echo "  brew install ansible"
-        echo "  brew install kubectl"
+        echo "Run the prerequisites installation script on your Ubuntu server"
         exit 1
     fi
 
@@ -80,7 +84,7 @@ check_prerequisites() {
 }
 
 provision_vms() {
-    print_header "Provisioning VMs with Vagrant"
+    print_header "Provisioning VMs with Vagrant (libvirt)"
 
     if vagrant status | grep -q "running"; then
         print_info "VMs are already running"
@@ -91,7 +95,7 @@ provision_vms() {
         fi
     else
         print_info "Starting VMs..."
-        vagrant up
+        vagrant up --provider=libvirt
         print_success "VMs provisioned successfully"
     fi
     echo ""
@@ -116,7 +120,7 @@ run_ansible_playbooks() {
         IFS=':' read -r playbook description <<< "$playbook_info"
         print_info "$description..."
 
-        if ansible-playbook "playbooks/$playbook" > /dev/null 2>&1; then
+        if ansible-playbook "playbooks/$playbook"; then
             print_success "$description completed"
         else
             print_error "$description failed"
@@ -183,6 +187,7 @@ show_completion_message() {
 main() {
     echo ""
     print_header "On-Prem Kubernetes Cluster Setup"
+    print_info "Ubuntu Server + Vagrant + libvirt/KVM"
     echo ""
 
     check_prerequisites

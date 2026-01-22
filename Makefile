@@ -1,10 +1,11 @@
-.PHONY: help up provision ansible verify destroy clean status ssh-control ssh-worker1 ssh-worker2
+.PHONY: help up provision verify destroy clean status ssh-control ssh-worker1 ssh-worker2
 
 help:
 	@echo "On-Prem Kubernetes Cluster Management"
+	@echo "Ubuntu Server + Vagrant + libvirt/KVM + Ansible"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make up          - Start VMs with Vagrant"
+	@echo "  make up          - Start VMs with Vagrant (libvirt provider)"
 	@echo "  make provision   - Run all Ansible playbooks sequentially"
 	@echo "  make verify      - Verify cluster health"
 	@echo "  make status      - Show VM and cluster status"
@@ -13,12 +14,9 @@ help:
 	@echo "  make ssh-control - SSH into control plane"
 	@echo "  make ssh-worker1 - SSH into worker-1"
 	@echo "  make ssh-worker2 - SSH into worker-2"
-	@echo ""
-	@echo "Full setup:"
-	@echo "  ./setup-cluster.sh"
 
 up:
-	vagrant up
+	vagrant up --provider=libvirt
 
 provision:
 	cd ansible && \
@@ -52,6 +50,7 @@ clean:
 	rm -f ansible/kubeconfig
 	rm -f ansible/kubeadm_join_command.sh
 	rm -f ansible/ansible.log
+	rm -rf .vagrant
 
 ssh-control:
 	vagrant ssh control-plane-1
