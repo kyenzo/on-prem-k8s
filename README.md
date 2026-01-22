@@ -212,6 +212,39 @@ WORKER_MEMORY = 4096
 WORKER_CPUS = 2
 ```
 
+## CI/CD with GitHub Actions
+
+This repository includes a GitHub Actions workflow that automatically deploys code to your EC2 instance on every push to `master`.
+
+### How It Works
+
+```
+Infrastructure Repo (creates EC2)
+  ↓
+Updates GitHub Secrets (IP + PEM key)
+  ↓
+Push to master in this repo
+  ↓
+GitHub Actions deploys to EC2
+```
+
+### Setup
+
+**One-time setup:**
+1. Set static secrets via GitHub CLI or web UI:
+   ```bash
+   gh secret set EC2_USER -b "ubuntu"
+   gh secret set DEPLOY_PATH -b "/home/ubuntu/on-prem-k8s"
+   ```
+
+**Automated by infrastructure repo:**
+- `EC2_SSH_PRIVATE_KEY` - Automatically updated when instance is created
+- `EC2_HOST` - Automatically updated with new IP address
+
+When you recreate your EC2 instance, your infrastructure repo will automatically update these secrets, and deployments will work with the new instance.
+
+See [.github/workflows/README.md](.github/workflows/README.md) for detailed setup instructions.
+
 ## Future Enhancements
 
 Planned features for portfolio expansion:
