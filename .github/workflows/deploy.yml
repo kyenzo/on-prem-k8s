@@ -22,7 +22,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
-          aws-region: us-east-1
+          aws-region: ca-west-1
 
       - name: Get EC2 SSH Private Key from AWS Secrets Manager
         id: get-ssh-key
@@ -58,7 +58,7 @@ jobs:
           echo "🔍 Retrieving EC2 host IP from AWS Secrets Manager..."
 
           EC2_IP=$(aws secretsmanager get-secret-value \
-            --secret-id "k8s-vms/ec2-host-ip" \
+            --secret-id "k8s-vms/ec2-public-ip" \
             --query 'SecretString' \
             --output text)
 
