@@ -5,6 +5,10 @@ on:
     branches:
       - master
 
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to Ubuntu EC2
@@ -14,50 +18,109 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure SSH
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Get EC2 SSH Private Key from AWS Secrets Manager
+        id: get-ssh-key
         run: |
+          echo "🔍 Retrieving SSH private key from AWS Secrets Manager..."
+
+          SSH_KEY=$(aws secretsmanager get-secret-value \
+            --secret-id "k8s-vms/ec2-ssh-private-key" \
+            --query 'SecretString' \
+            --output text)
+
+          if [ -z "$SSH_KEY" ]; then
+            echo "❌ SSH key secret not found or empty"
+            exit 1
+          fi
+
+          # Verify it's a valid PEM format
+          if echo "$SSH_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
+            echo "✅ SSH private key retrieved successfully"
+          else
+            echo "❌ SSH key doesn't appear to be valid PEM format"
+            exit 1
+          fi
+
+          # Save to file with proper permissions
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Get EC2 Host IP from AWS Secrets Manager
+        id: get-ec2-ip
+        run: |
+          echo "🔍 Retrieving EC2 host IP from AWS Secrets Manager..."
+
+          EC2_IP=$(aws secretsmanager get-secret-value \
+            --secret-id "k8s-vms/ec2-host-ip" \
+            --query 'SecretString' \
+            --output text)
+
+          if [ -z "$EC2_IP" ]; then
+            echo "❌ EC2 IP secret not found or empty"
+            exit 1
+          fi
+
+          echo "✅ EC2 IP retrieved: $EC2_IP"
+          echo "EC2_HOST=$EC2_IP" >> $GITHUB_OUTPUT
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ steps.get-ec2-ip.outputs.EC2_HOST }}
+        run: |
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          echo "✅ SSH configured for $EC2_HOST"
 
       - name: Deploy to EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          EC2_HOST: ${{ steps.get-ec2-ip.outputs.EC2_HOST }}
+          EC2_USER: ubuntu
+          DEPLOY_PATH: /home/ubuntu/on-prem-k8s
         run: |
+          echo "=========================================="
+          echo "🚀 Deploying on-prem-k8s to EC2"
+          echo "=========================================="
+          echo "Target: $EC2_USER@$EC2_HOST"
+          echo "Path: $DEPLOY_PATH"
+          echo ""
+
           ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} << 'EOF'
             set -e
 
-            echo "=========================================="
-            echo "Deploying on-prem-k8s to EC2"
-            echo "=========================================="
+            echo "📦 Navigating to deployment directory..."
 
-            # Navigate to deployment directory
+            # Create directory if it doesn't exist
+            mkdir -p ${DEPLOY_PATH}
             cd ${DEPLOY_PATH}
 
             # Check if repository exists
             if [ -d ".git" ]; then
-              echo "Repository exists. Pulling latest changes..."
+              echo "📥 Repository exists. Pulling latest changes..."
               git fetch origin
               git reset --hard origin/master
               git clean -fd
             else
-              echo "Repository doesn't exist. Cloning..."
-              cd ..
-              git clone https://github.com/${{ github.repository }}.git on-prem-k8s
-              cd on-prem-k8s
+              echo "📦 Repository doesn't exist. Cloning..."
+              cd $(dirname ${DEPLOY_PATH})
+              git clone https://github.com/${{ github.repository }}.git $(basename ${DEPLOY_PATH})
+              cd $(basename ${DEPLOY_PATH})
             fi
 
             echo ""
             echo "=========================================="
-            echo "Current commit:"
+            echo "✅ Current commit:"
             git log -1 --oneline
             echo "=========================================="
             echo ""
-            echo "Deployment successful!"
-            echo "You can now run:"
+            echo "🎉 Deployment successful!"
+            echo ""
+            echo "Next steps:"
             echo "  cd ${DEPLOY_PATH}"
             echo "  vagrant up --provider=libvirt"
             echo "  ./setup-cluster.sh"
