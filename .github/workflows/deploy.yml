@@ -21,7 +21,7 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-ec2-k8s
           aws-region: ca-west-1
 
       - name: Get EC2 SSH Private Key from AWS Secrets Manager
@@ -131,4 +131,3 @@ jobs:
         run: |
           rm -f ~/.ssh/id_rsa
 
-          
