@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
 
 permissions:
   id-token: write   # Required for OIDC
@@ -80,18 +81,18 @@ jobs:
       - name: Deploy to EC2
         env:
           EC2_HOST: ${{ steps.get-ec2-ip.outputs.EC2_HOST }}
-          EC2_USER: ubuntu
-          DEPLOY_PATH: /home/ubuntu/on-prem-k8s
         run: |
           echo "=========================================="
           echo "🚀 Deploying on-prem-k8s to EC2"
           echo "=========================================="
-          echo "Target: $EC2_USER@$EC2_HOST"
-          echo "Path: $DEPLOY_PATH"
+          echo "Target: ubuntu@$EC2_HOST"
+          echo "Path: /home/ubuntu/on-prem-k8s"
           echo ""
 
-          ssh -i ~/.ssh/id_rsa ${EC2_USER}@${EC2_HOST} << 'EOF'
+          ssh -i ~/.ssh/id_rsa ubuntu@${EC2_HOST} /bin/bash << 'EOF'
             set -e
+
+            DEPLOY_PATH="/home/ubuntu/on-prem-k8s"
 
             echo "📦 Navigating to deployment directory..."
 
@@ -120,14 +121,25 @@ jobs:
             echo ""
             echo "🎉 Deployment successful!"
             echo ""
-            echo "Next steps:"
+            echo "📋 Next steps (manual):"
             echo "  cd ${DEPLOY_PATH}"
             echo "  vagrant up --provider=libvirt"
             echo "  ./setup-cluster.sh"
           EOF
 
+      # Commented out for manual testing
+      # - name: Start VMs and Setup Cluster
+      #   env:
+      #     EC2_HOST: ${{ steps.get-ec2-ip.outputs.EC2_HOST }}
+      #   run: |
+      #     echo "🚀 Starting VMs and setting up cluster..."
+      #     ssh -i ~/.ssh/id_rsa ubuntu@${EC2_HOST} /bin/bash << 'EOF'
+      #       cd /home/ubuntu/on-prem-k8s
+      #       vagrant up --provider=libvirt
+      #       ./setup-cluster.sh
+      #     EOF
+
       - name: Cleanup SSH keys
         if: always()
         run: |
           rm -f ~/.ssh/id_rsa
-
