@@ -73,3 +73,4 @@ Vagrant.configure(VAGRANT_API_VERSION) do |config|
     end
   end
 end
+
